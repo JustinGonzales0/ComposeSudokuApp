@@ -188,8 +188,13 @@ class SudokuBoardScreenViewModel (
         }
     }
 
-    fun getCurrentSudokuBoardEntry(): SudokuBoardEntryState =
-        _currentSudokuBoard.value[selectedEntry.first][selectedEntry.second]
+    fun getCurrentSudokuBoardEntry(): SudokuBoardEntryState {
+        if (currentEntryIsOutOfBounds()) {
+            return SudokuBoardEntryState(-1, false, setOf())
+        }
+
+        return _currentSudokuBoard.value[selectedEntry.first][selectedEntry.second]
+    }
 
     fun eraseEntry() {
         setCurrentSudokuBoardEntry(getCurrentSudokuBoardEntry().copy(number = 0, notesList = setOf()))
