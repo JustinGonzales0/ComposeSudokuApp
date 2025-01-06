@@ -1,5 +1,6 @@
 package com.example.sudoku.ui
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.sudoku.ui.theme.SudokuTheme
@@ -47,8 +49,8 @@ fun SudokuApp(modifier: Modifier = Modifier) {
                     is InitSudokuBoardUiState.Success -> {
                         InfoBar(
                             difficulty = sudokuBoardScreenViewModel.difficulty,
-                            time = "1:23",
-                            hintsLeft = 3,
+                            timeProvider = { sudokuBoardScreenViewModel.puzzleTimeString },
+                            hintsLeft = sudokuBoardScreenViewModel.numHints.collectAsStateWithLifecycle().value,
                             modifier = Modifier
                         )
                         SudokuBoard(
@@ -65,18 +67,30 @@ fun SudokuApp(modifier: Modifier = Modifier) {
                     }
                 }
 
+                val context = LocalContext.current
+
                 NumberInputArea(
                     isNotesMode = sudokuBoardScreenViewModel.notesMode.collectAsStateWithLifecycle().value,
                     numberCounts = sudokuBoardScreenViewModel.numberCounts.collectAsStateWithLifecycle().value,
                     onInputButtonClick = { number ->
                         if (sudokuBoardScreenViewModel.notesMode.value) {
-                            sudokuBoardScreenViewModel.addOrRemoveNote(number)
+                            sudokuBoardScreenViewModel.addOrRemoveNoteAtCurrentEntry(number)
                         } else {
-                            sudokuBoardScreenViewModel.setSudokuBoardCurrentState(number)
+                            sudokuBoardScreenViewModel.setCurrentSudokuBoardEntry(sudokuBoardScreenViewModel.getCurrentSudokuBoardEntry().copy(number = number))
                         }
                     },
-                    onClickErase = { sudokuBoardScreenViewModel.eraseEntry()},
-                    onClickEdit = { sudokuBoardScreenViewModel.toggleNotesMode()},
+                    onClickErase = { sudokuBoardScreenViewModel.eraseEntry() },
+                    onClickEdit = { sudokuBoardScreenViewModel.toggleNotesMode() },
+                    onClickHint = {
+                        // Show toast based on result of getting a hint
+                        // we do this here because getting the context in the viewmodel is difficult
+                        val hintResult = sudokuBoardScreenViewModel.getHint()
+                        if (hintResult == -1) {
+                            Toast.makeText(context, "You have no more hints!", Toast.LENGTH_SHORT).show()
+                        } else if (hintResult == 0) {
+                            Toast.makeText(context, "You have no open spots for a hint!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                 )

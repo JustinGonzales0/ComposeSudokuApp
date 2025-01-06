@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun InfoBar(
     difficulty: String,
-    time: String,
+    timeProvider: () -> String,
     hintsLeft: Int,
     modifier: Modifier = Modifier
 ) {
@@ -32,20 +32,20 @@ fun InfoBar(
     ) {
         InfoBarDataDisplay(
             tag = "Difficulty",
-            data = difficulty)
+            dataProvider = { difficulty })
         InfoBarDataDisplay(
             tag = "Time",
-            data = time)
+            dataProvider = timeProvider)
         InfoBarDataDisplay(
             tag = "Hints left",
-            data = hintsLeft.toString())
+            dataProvider = { hintsLeft.toString() })
     }
 }
 
 @Composable
 fun InfoBarDataDisplay(
     tag: String,
-    data: String,
+    dataProvider: () -> String,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -54,7 +54,7 @@ fun InfoBarDataDisplay(
     ) {
         Text(text = tag)
         Text(
-            text = data,
+            text = dataProvider(),
             color = Color.DarkGray
         )
     }
@@ -66,7 +66,7 @@ private fun InfoBarPreview() {
     Surface {
         InfoBar(
             difficulty = "Medium",
-            time = "1:23",
+            timeProvider = { "1:23" },
             hintsLeft = 3,
             modifier = Modifier
         )

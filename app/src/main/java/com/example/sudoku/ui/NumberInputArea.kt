@@ -43,6 +43,7 @@ fun NumberInputArea(
     onInputButtonClick: (number: Int) -> Unit,
     onClickErase: () -> Unit,
     onClickEdit: () -> Unit,
+    onClickHint: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column (
@@ -56,7 +57,7 @@ fun NumberInputArea(
                 .fillMaxWidth()
                 .padding(end = 10.dp, bottom = 10.dp)
         ) {
-            HintButton(onClick = {})
+            HintButton(onClick = onClickHint)
             NotesButton(onClickEdit = onClickEdit, isNotesMode = isNotesMode)
             EraseButton(onClick = onClickErase)
         }
@@ -101,6 +102,7 @@ private fun NumberInputAreaPreview() {
             onClickEdit = {},
             isNotesMode = false,
             numberCounts = listOf(0),
+            onClickHint = {}
         )
     }
 }

@@ -1,7 +1,7 @@
 package com.example.sudoku.ui
 
-import android.R.attr.end
 import android.net.http.HttpException
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,14 +35,17 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.sudoku.SudokuApplication
 import com.example.sudoku.data.SudokuBoardRepository
 import com.example.sudoku.data.network.YouDoSudokuPuzzle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import okio.IOException
-import java.lang.Character.toUpperCase
+import java.util.Stack
 import kotlin.Int
 import kotlin.collections.mutableListOf
+import kotlin.random.Random
 
 sealed interface InitSudokuBoardUiState {
     data class Success(
@@ -57,6 +60,14 @@ data class SudokuBoardEntryState(
     val isMutable: Boolean,
     val notesList: Set<Int>
 ) {
+}
+
+data class UserAction(
+    val indices: Pair<Int, Int>,
+    val newEntryState: SudokuBoardEntryState,
+    val originalEntryState: SudokuBoardEntryState
+) {
+
 }
 
 class SudokuBoardScreenViewModel (
@@ -105,6 +116,17 @@ class SudokuBoardScreenViewModel (
 
     var quickKeyboardMove: Boolean = false
 
+    private var _puzzleTime: Int = 0
+
+    var puzzleTimeString by mutableStateOf("0:00")
+
+    private var timerJob: Job? = null
+
+    private val _numHints = MutableStateFlow(3)
+    val numHints = _numHints.asStateFlow()
+
+    private var userActions = Stack<UserAction>()
+
     // Initialization
     init {
         getSudokuBoard()
@@ -147,6 +169,10 @@ class SudokuBoardScreenViewModel (
                 difficulty = difficulty.replaceFirstChar { it.uppercaseChar() }
 
                 setNumberCounts()
+
+                startTimer()
+
+                userActions = Stack<UserAction>()
             }
         }
     }
@@ -170,30 +196,42 @@ class SudokuBoardScreenViewModel (
         _initSudokuBoardUiState.value = InitSudokuBoardUiState.Loading
     }
 
-    fun setSudokuBoardCurrentState(newEntryNumber: Int) {
-        setCurrentSudokuBoardEntry(getCurrentSudokuBoardEntry().copy(number = newEntryNumber, notesList = setOf()))
+    fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState) {
+        setSudokuBoardEntry(Pair(selectedEntry.first, selectedEntry.second), entryState)
     }
 
-    fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState) {
+    fun setSudokuBoardEntry(indices: Pair<Int, Int>, entryState: SudokuBoardEntryState) {
         if (!getCurrentSudokuBoardEntry().isMutable || currentEntryIsOutOfBounds()) {
             return
         }
 
-        _currentSudokuBoard.value[selectedEntry.first][selectedEntry.second] = entryState
+        val originalEntryState = _currentSudokuBoard.value[indices.first][indices.second]
+
+        _currentSudokuBoard.value[indices.first][indices.second] = entryState
+
+        if (entryState.number != 0) {
+            _currentSudokuBoard.value[indices.first][indices.second] = entryState.copy(notesList = setOf())
+        }
 
         setNumberCounts()
 
-        if (!notesMode.value && sudokuBoardSolution[selectedEntry.first][selectedEntry.second] == entryState.number) {
+        if (indices == selectedEntry && !notesMode.value && sudokuBoardSolution[selectedEntry.first][selectedEntry.second] == entryState.number) {
             adaptNotes(entryState.number)
         }
+
+        userActions.push(UserAction(indices, originalEntryState, entryState))
     }
 
     fun getCurrentSudokuBoardEntry(): SudokuBoardEntryState {
-        if (currentEntryIsOutOfBounds()) {
+        return getSudokuBoardEntry(selectedEntry)
+    }
+
+    fun getSudokuBoardEntry(indices: Pair<Int, Int>): SudokuBoardEntryState {
+        if (entryIsOutOfBounds(indices)) {
             return SudokuBoardEntryState(-1, false, setOf())
         }
 
-        return _currentSudokuBoard.value[selectedEntry.first][selectedEntry.second]
+        return _currentSudokuBoard.value[indices.first][indices.second]
     }
 
     fun eraseEntry() {
@@ -201,44 +239,36 @@ class SudokuBoardScreenViewModel (
     }
 
     fun currentEntryIsOutOfBounds(): Boolean =
-        selectedEntry.first < 0 || selectedEntry.second < 0 || selectedEntry.first > 8 || selectedEntry.second > 8
+        entryIsOutOfBounds(selectedEntry)
+
+    fun entryIsOutOfBounds(indices: Pair<Int, Int>): Boolean =
+        indices.first < 0 || indices.second < 0 || indices.first > 8 || indices.second > 8
 
     // Notes
     fun toggleNotesMode() {
         _notesMode.value = !_notesMode.value
     }
 
-    fun addOrRemoveNote(number: Int) {
-        if (getCurrentSudokuBoardEntry().number != 0) {
-            return
-        }
-
-        if (getCurrentSudokuBoardEntry().notesList.contains(number)) {
-            setCurrentSudokuBoardEntry(getCurrentSudokuBoardEntry().copy(
-                notesList = getCurrentSudokuBoardEntry().notesList - number
-            ))
-        } else {
-            setCurrentSudokuBoardEntry(
-                getCurrentSudokuBoardEntry().copy(
-                    notesList = getCurrentSudokuBoardEntry().notesList + number
-                )
-            )
-        }
+    fun addOrRemoveNoteAtCurrentEntry(number: Int) {
+        addOrRemoveNote(selectedEntry, number)
     }
 
-    fun addOrRemoveNote(entry: Pair<Int, Int>, number: Int) {
-        val entryValue: SudokuBoardEntryState = _currentSudokuBoard.value[entry.first][entry.second]
-
-        if (entryValue.number != 0) {
+    fun addOrRemoveNote(indices: Pair<Int, Int>, number: Int) {
+        if (getSudokuBoardEntry(indices).number != 0) {
             return
         }
 
-        if (entryValue.notesList.contains(number)) {
-            _currentSudokuBoard.value[entry.first][entry.second] =
-                entryValue.copy(notesList = entryValue.notesList - number)
+        // Log.d("JSG", "in addOrRemoveNote")
+
+        if (getSudokuBoardEntry(indices).notesList.contains(number)) {
+            setSudokuBoardEntry(indices, getSudokuBoardEntry(indices).copy(
+                notesList = getSudokuBoardEntry(indices).notesList - number
+            ))
         } else {
-            _currentSudokuBoard.value[entry.first][entry.second] =
-                entryValue.copy(notesList = entryValue.notesList + number)
+            setSudokuBoardEntry(indices, getSudokuBoardEntry(indices).copy(
+                    notesList = getSudokuBoardEntry(indices).notesList + number
+                )
+            )
         }
     }
 
@@ -265,9 +295,12 @@ class SudokuBoardScreenViewModel (
 
     private fun adaptNotes(inputtedNumber: Int) {
 
+        // Log.d("JSG", "in adaptNotes")
+
         val currentEntryBlockRange: Pair<Pair<Int, Int>, Pair<Int, Int>> = findCelRange(selectedEntry)
 
         fun shouldRemoveNote(entry: Pair<Int, Int>): Boolean {
+            // Log.d("JSG", "in shouldRemoveNote, at $entry")
             return (entry.first == selectedEntry.first || entry.second == selectedEntry.second) ||
                     isInCelRange(entry, currentEntryBlockRange)
         }
@@ -306,6 +339,38 @@ class SudokuBoardScreenViewModel (
 //            val trueIndex: Int = index + 1
 //            Log.d("JSG", "numberCounts: $trueIndex- $num")
 //        }
+    }
+
+    // Hints
+    fun getHint(): Int {
+        if (numHints.value < 1) {
+            return -1
+        }
+
+        val openings: MutableList<Pair<Int, Int>> = mutableListOf()
+
+        currentSudokuBoard.value.forEachIndexed { rowIndex, row ->
+            row.forEachIndexed { columnIndex, entry ->
+                if (entry.isMutable && entry.number == 0) {
+                    openings.add(Pair(rowIndex, columnIndex))
+                }
+            }
+        }
+
+        if (openings.isEmpty()) {
+            return 0
+        }
+
+        val selectedHintEntry: Pair<Int, Int> = openings[Random.nextInt(openings.size)]
+        val currentHintSudokuBoardEntry = _currentSudokuBoard.value[selectedHintEntry.first][selectedHintEntry.second]
+        _currentSudokuBoard.value[selectedHintEntry.first][selectedHintEntry.second] = currentHintSudokuBoardEntry.copy(
+            number = sudokuBoardSolution[selectedHintEntry.first][selectedHintEntry.second],
+            notesList = setOf(),
+        )
+
+        _numHints.value--
+
+        return openings.size
     }
 
     // Keyboard
@@ -347,7 +412,7 @@ class SudokuBoardScreenViewModel (
             if (!_notesMode.value) {
                 setCurrentSudokuBoardEntry(getCurrentSudokuBoardEntry().copy(number = newNumber))
             } else {
-                addOrRemoveNote(newNumber)
+                addOrRemoveNoteAtCurrentEntry(newNumber)
             }
 
             return
@@ -420,5 +485,40 @@ class SudokuBoardScreenViewModel (
 
             return
         }
+    }
+
+    // Timer
+    fun startTimer() {
+        timerJob?.cancel()
+        timerJob = viewModelScope.launch {
+            while(true) {
+                delay(1000)
+                _puzzleTime++
+                puzzleTimeString = getTimerString(_puzzleTime)
+            }
+        }
+    }
+
+    fun pauseTimer() {
+        timerJob?.cancel()
+    }
+
+    fun stopTimer() {
+        _puzzleTime = 0
+        timerJob?.cancel()
+    }
+
+    fun getTimerString(seconds: Int) : String {
+        val minutes: Int = (seconds / 60).toInt()
+        val seconds: Int = (seconds % 60)
+
+        var secondsString: String = seconds.toString()
+        if (seconds < 10) {
+            secondsString = "0$secondsString"
+        }
+
+        val minutesString: String = minutes.toString()
+
+        return "$minutesString:$secondsString"
     }
 }
