@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.Key.Companion.Eight
 import androidx.compose.ui.input.key.Key.Companion.Five
@@ -197,17 +198,24 @@ class SudokuBoardScreenViewModel (
     }
 
     fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState) {
-        setSudokuBoardEntry(Pair(selectedEntry.first, selectedEntry.second), entryState)
+        setSudokuBoardEntry(Pair(selectedEntry.first, selectedEntry.second), entryState, false)
     }
 
-    fun setSudokuBoardEntry(indices: Pair<Int, Int>, entryState: SudokuBoardEntryState) {
-        if (!getCurrentSudokuBoardEntry().isMutable || currentEntryIsOutOfBounds()) {
+    fun setSudokuBoardEntry(indices: Pair<Int, Int>, entryState: SudokuBoardEntryState, isUndo: Boolean) {
+        if (!getSudokuBoardEntry(indices).isMutable || entryIsOutOfBounds(indices)) {
+            // Log.d("JSG", "setSudokuBoardEntry failed")
             return
         }
 
-        val originalEntryState = _currentSudokuBoard.value[indices.first][indices.second]
+        // Log.d("JSG", "in setSudokuBoardEntry")
+
+        val originalEntryState: SudokuBoardEntryState = _currentSudokuBoard.value[indices.first][indices.second].copy()
+
+        // Log.d("JSG", "originalEntryState: $originalEntryState")
 
         _currentSudokuBoard.value[indices.first][indices.second] = entryState
+
+        // Log.d("JSG", "new entry state: $entryState")
 
         if (entryState.number != 0) {
             _currentSudokuBoard.value[indices.first][indices.second] = entryState.copy(notesList = setOf())
@@ -219,7 +227,9 @@ class SudokuBoardScreenViewModel (
             adaptNotes(entryState.number)
         }
 
-        userActions.push(UserAction(indices, originalEntryState, entryState))
+        if (!isUndo) {
+            userActions.push(UserAction(indices = indices, newEntryState = entryState, originalEntryState = originalEntryState))
+        }
     }
 
     fun getCurrentSudokuBoardEntry(): SudokuBoardEntryState {
@@ -244,6 +254,17 @@ class SudokuBoardScreenViewModel (
     fun entryIsOutOfBounds(indices: Pair<Int, Int>): Boolean =
         indices.first < 0 || indices.second < 0 || indices.first > 8 || indices.second > 8
 
+    fun undo() {
+        if (userActions.empty()) {
+            // Log.d("JSG", "undo failed")
+            return
+        }
+
+        val undoAction = userActions.pop()
+
+        setSudokuBoardEntry(undoAction.indices, undoAction.originalEntryState, true)
+    }
+
     // Notes
     fun toggleNotesMode() {
         _notesMode.value = !_notesMode.value
@@ -262,12 +283,15 @@ class SudokuBoardScreenViewModel (
 
         if (getSudokuBoardEntry(indices).notesList.contains(number)) {
             setSudokuBoardEntry(indices, getSudokuBoardEntry(indices).copy(
-                notesList = getSudokuBoardEntry(indices).notesList - number
-            ))
+                    notesList = getSudokuBoardEntry(indices).notesList - number
+                ),
+                false
+            )
         } else {
             setSudokuBoardEntry(indices, getSudokuBoardEntry(indices).copy(
                     notesList = getSudokuBoardEntry(indices).notesList + number
-                )
+                ),
+                false
             )
         }
     }

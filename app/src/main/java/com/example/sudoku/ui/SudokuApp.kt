@@ -91,6 +91,7 @@ fun SudokuApp(modifier: Modifier = Modifier) {
                             Toast.makeText(context, "You have no open spots for a hint!", Toast.LENGTH_SHORT).show()
                         }
                     },
+                    onClickUndo = { sudokuBoardScreenViewModel.undo() },
                     modifier = Modifier
                         .weight(1f)
                 )

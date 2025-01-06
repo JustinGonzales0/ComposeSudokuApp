@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Icon
@@ -44,6 +45,7 @@ fun NumberInputArea(
     onClickErase: () -> Unit,
     onClickEdit: () -> Unit,
     onClickHint: () -> Unit,
+    onClickUndo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column (
@@ -52,13 +54,14 @@ fun NumberInputArea(
         verticalArrangement = Arrangement.Center
     ) {
         Row(
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.SpaceBetween,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(end = 10.dp, bottom = 10.dp)
+                .padding(start = 20.dp, end = 20.dp, bottom = 10.dp)
         ) {
-            HintButton(onClick = onClickHint)
             NotesButton(onClickEdit = onClickEdit, isNotesMode = isNotesMode)
+            HintButton(onClick = onClickHint)
+            UndoButton(onClick = onClickUndo)
             EraseButton(onClick = onClickErase)
         }
         Row(
@@ -102,7 +105,8 @@ private fun NumberInputAreaPreview() {
             onClickEdit = {},
             isNotesMode = false,
             numberCounts = listOf(0),
-            onClickHint = {}
+            onClickHint = {},
+            onClickUndo = {}
         )
     }
 }
@@ -154,6 +158,23 @@ fun HintButton(
         Icon(
             painter = painterResource(R.drawable.baseline_lightbulb_outline_24),
             contentDescription = "Hint button",
+            modifier = Modifier.size(80.dp)
+        )
+    }
+}
+
+@Composable
+fun UndoButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Refresh,
+            contentDescription = "Undo button",
             modifier = Modifier.size(80.dp)
         )
     }
