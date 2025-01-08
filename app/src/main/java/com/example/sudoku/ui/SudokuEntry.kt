@@ -1,14 +1,14 @@
 package com.example.sudoku.ui
 
-import android.R.attr.text
-import android.util.Log.i
+import android.R.attr.x
+import android.R.attr.y
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -25,13 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.Key.Companion.K
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
@@ -41,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import java.util.Map.entry
 
 @Composable
 fun SudokuEntry(
@@ -51,6 +45,8 @@ fun SudokuEntry(
     solution: Int,
     selectedEntryProvider: () -> Pair<Int, Int>,
     selectedNumberProvider: () -> Int,
+    doPlayerWonAnimation: Boolean,
+    playerWonAnimationAmount: Float,
     onElementClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -68,7 +64,11 @@ fun SudokuEntry(
             .aspectRatio(1f)
             .fillMaxSize()
             .then(
-                if (isErrorEntry) {
+                if (doPlayerWonAnimation) {
+                    Modifier
+                        .background(MaterialTheme.colorScheme.surfaceBright)
+                        .shadow(elevation = playerWonAnimationAmount.dp)
+                } else if (isErrorEntry) {
                     Modifier.background(MaterialTheme.colorScheme.error)
                 } else if (isSelected) {
                     Modifier.background(Color.Gray)

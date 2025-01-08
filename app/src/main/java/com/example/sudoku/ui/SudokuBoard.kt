@@ -1,6 +1,13 @@
 package com.example.sudoku.ui
 
+import android.R.attr.label
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,10 +49,12 @@ fun SudokuBoard(
     currentSudokuBoard: SnapshotStateList<SnapshotStateList<SudokuBoardEntryState>>,
     sudokuBoardSolution: List<List<Int>>,
     selectedEntryProvider: () -> Pair<Int, Int>,
+    playerWon: Boolean,
+    playerWonAnimationProgress: Float,
     onElementClick: ((Int, Int) -> Unit)?,
     onEntryKeyEvent: (Long) -> Unit,
     modifier: Modifier = Modifier
-) {
+    ) {
     Box(
         modifier = modifier
             .padding(5.dp)
@@ -56,7 +65,6 @@ fun SudokuBoard(
                 shape = RoundedCornerShape(10.dp)
             )
             .padding(4.dp)
-            .focusable()
             .onKeyEvent {
                 if (it.type == KeyEventType.KeyDown) {
                     onEntryKeyEvent(it.key.keyCode)
@@ -165,6 +173,7 @@ fun SudokuBoard(
                                 -1
                             }
                         },
+                        playerWonAnimationProgress = playerWonAnimationProgress,
                         onElementClick = onElementClick!!
                     )
                 }

@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Sudoku</string>
     <string name="edit_button">Edit button</string>
+    <string name="game_is_currently_paused">Your game is currently paused.</string>
 </resources>

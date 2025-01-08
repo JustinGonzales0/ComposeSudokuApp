@@ -2,11 +2,16 @@ package com.example.sudoku.ui
 
 import android.net.http.HttpException
 import android.util.Log
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.Key.Companion.Eight
@@ -36,16 +41,20 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.sudoku.SudokuApplication
 import com.example.sudoku.data.SudokuBoardRepository
 import com.example.sudoku.data.network.YouDoSudokuPuzzle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okio.IOException
 import java.util.Stack
 import kotlin.Int
 import kotlin.collections.mutableListOf
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
 
 sealed interface InitSudokuBoardUiState {
@@ -123,10 +132,18 @@ class SudokuBoardScreenViewModel (
 
     private var timerJob: Job? = null
 
+    private var isPaused: Boolean = false
+
     private val _numHints = MutableStateFlow(3)
     val numHints = _numHints.asStateFlow()
 
     private var userActions = Stack<UserAction>()
+
+    var playerWon by mutableStateOf(false)
+
+    val playerWonAnimationProgress = Animatable(-1.0f)
+
+    var youWonAnimationComposableContext: CoroutineContext = EmptyCoroutineContext
 
     // Initialization
     init {
@@ -174,6 +191,8 @@ class SudokuBoardScreenViewModel (
                 startTimer()
 
                 userActions = Stack<UserAction>()
+
+                Log.d("JSG", sudokuBoardSolution.toString())
             }
         }
     }
@@ -190,6 +209,10 @@ class SudokuBoardScreenViewModel (
 
     // Entries
     fun setSelectedEntry(rowIndex: Int, columnIndex: Int) {
+        if (playerWon || isPaused) {
+            return
+        }
+
         selectedEntry = Pair(rowIndex, columnIndex)
     }
 
@@ -197,11 +220,15 @@ class SudokuBoardScreenViewModel (
         _initSudokuBoardUiState.value = InitSudokuBoardUiState.Loading
     }
 
-    fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState) {
+    fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState, composableCoroutineContext: CoroutineContext? = null) {
         setSudokuBoardEntry(Pair(selectedEntry.first, selectedEntry.second), entryState, false)
     }
 
     fun setSudokuBoardEntry(indices: Pair<Int, Int>, entryState: SudokuBoardEntryState, isUndo: Boolean) {
+        if (playerWon || isPaused) {
+            return
+        }
+
         if (!getSudokuBoardEntry(indices).isMutable || entryIsOutOfBounds(indices)) {
             // Log.d("JSG", "setSudokuBoardEntry failed")
             return
@@ -229,6 +256,14 @@ class SudokuBoardScreenViewModel (
 
         if (!isUndo) {
             userActions.push(UserAction(indices = indices, newEntryState = entryState, originalEntryState = originalEntryState))
+        }
+
+        if (hasPlayerWon()) {
+            playerWon = true
+            startYouWonAnimation(
+                8.0f, {}
+            )
+            stopTimer()
         }
     }
 
@@ -267,6 +302,10 @@ class SudokuBoardScreenViewModel (
 
     // Notes
     fun toggleNotesMode() {
+        if (isPaused) {
+            return
+        }
+
         _notesMode.value = !_notesMode.value
     }
 
@@ -365,12 +404,7 @@ class SudokuBoardScreenViewModel (
 //        }
     }
 
-    // Hints
-    fun getHint(): Int {
-        if (numHints.value < 1) {
-            return -1
-        }
-
+    fun getOpenEntries(): List<Pair<Int, Int>> {
         val openings: MutableList<Pair<Int, Int>> = mutableListOf()
 
         currentSudokuBoard.value.forEachIndexed { rowIndex, row ->
@@ -380,6 +414,35 @@ class SudokuBoardScreenViewModel (
                 }
             }
         }
+
+        return openings
+    }
+
+    fun hasPlayerWon(): Boolean {
+        currentSudokuBoard.value.forEachIndexed { rowIndex, row ->
+            row.forEachIndexed { columnIndex, entry ->
+                if (entry.isMutable && entry.number != sudokuBoardSolution[rowIndex][columnIndex]) {
+                    return false
+                }
+            }
+        }
+
+        Log.d("JSG", "Player won")
+
+        return true
+    }
+
+    // Hints
+    fun getHint(): Int {
+        if (playerWon || isPaused) {
+            return -1
+        }
+
+        if (numHints.value < 1) {
+            return -1
+        }
+
+        val openings: List<Pair<Int, Int>> = getOpenEntries()
 
         if (openings.isEmpty()) {
             return 0
@@ -402,7 +465,11 @@ class SudokuBoardScreenViewModel (
         quickKeyboardMove = !quickKeyboardMove
     }
 
-    fun handleKeyInput(code: Long) {
+    fun handleKeyInput(code: Long, composableCoroutineContext: CoroutineContext? = null) {
+        if (playerWon || isPaused) {
+            return
+        }
+
         if (code in One.keyCode .. Nine.keyCode || code in NumPad1.keyCode .. NumPad9.keyCode) {
 
             var newNumber = 0
@@ -509,6 +576,14 @@ class SudokuBoardScreenViewModel (
 
             return
         }
+
+        if (code == Key.R.keyCode) {
+            undo()
+        }
+
+        if (code == Key.H.keyCode) {
+            getHint()
+        }
     }
 
     // Timer
@@ -521,15 +596,18 @@ class SudokuBoardScreenViewModel (
                 puzzleTimeString = getTimerString(_puzzleTime)
             }
         }
+        isPaused = false
     }
 
     fun pauseTimer() {
         timerJob?.cancel()
+        isPaused = true
     }
 
     fun stopTimer() {
         _puzzleTime = 0
         timerJob?.cancel()
+        isPaused = true
     }
 
     fun getTimerString(seconds: Int) : String {
@@ -544,5 +622,16 @@ class SudokuBoardScreenViewModel (
         val minutesString: String = minutes.toString()
 
         return "$minutesString:$secondsString"
+    }
+
+    // Animations
+    fun startYouWonAnimation(targetValue: Float, onAnimationEnd: () -> Unit) {
+        viewModelScope.launch(youWonAnimationComposableContext) {
+            playerWonAnimationProgress.animateTo(
+                targetValue = targetValue,
+                animationSpec = tween(durationMillis = 5000, easing = LinearEasing)
+            )
+            onAnimationEnd()
+        }
     }
 }

@@ -22,7 +22,7 @@ class DefaultSudokuRepository(
         // val requestBodyObj: PuzzleRequestBody = PuzzleRequestBody("easy", true, true)
 
         val jsonRequestObj = JSONObject()
-        jsonRequestObj.put("difficulty", "medium")
+        jsonRequestObj.put("difficulty", "easy")
         jsonRequestObj.put("solution", true)
         jsonRequestObj.put("array", true)
 

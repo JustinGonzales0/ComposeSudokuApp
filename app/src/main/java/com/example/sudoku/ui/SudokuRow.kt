@@ -26,9 +26,10 @@ fun SudokuRow(
     rowIndex: Int,
     selectedEntryProvider: () -> Pair<Int, Int>,
     selectedNumberProvider: () -> Int,
+    playerWonAnimationProgress: Float,
     onElementClick: ((Int, Int) -> Unit)?,
     modifier: Modifier = Modifier
-) {
+    ) {
     Row(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
@@ -45,6 +46,8 @@ fun SudokuRow(
                 solution = rowSolution[columnIndex],
                 selectedEntryProvider = selectedEntryProvider,
                 selectedNumberProvider = selectedNumberProvider,
+                doPlayerWonAnimation = columnIndex <= playerWonAnimationProgress && rowIndex <= playerWonAnimationProgress,
+                playerWonAnimationAmount = columnIndex.toFloat() / playerWonAnimationProgress + rowIndex.toFloat() / playerWonAnimationProgress,
                 onElementClick = { onElementClick!!(rowIndex, columnIndex) },
                 modifier.weight(1f)
             )
