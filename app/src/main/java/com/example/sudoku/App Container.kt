@@ -1,6 +1,6 @@
 package com.example.sudoku
 
-import com.example.sudoku.data.DefaultSudokuRepository
+import com.example.sudoku.data.NetworkSudokuRepository
 import com.example.sudoku.data.SudokuBoardRepository
 import com.example.sudoku.data.network.SudokuApiService
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -10,7 +10,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import retrofit2.Retrofit
 
 interface AppContainer {
-    val sudokuBoardRepository: SudokuBoardRepository
+    val networkSudokuBoardRepository: SudokuBoardRepository
 }
 
 class DefaultAppContainer : AppContainer {
@@ -33,7 +33,7 @@ class DefaultAppContainer : AppContainer {
         retrofit.create(SudokuApiService::class.java)
     }
 
-    override val sudokuBoardRepository: SudokuBoardRepository by lazy {
-        DefaultSudokuRepository(retrofitService)
+    override val networkSudokuBoardRepository: SudokuBoardRepository by lazy {
+        NetworkSudokuRepository(retrofitService)
     }
 }

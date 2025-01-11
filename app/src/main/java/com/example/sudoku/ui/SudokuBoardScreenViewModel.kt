@@ -1,12 +1,14 @@
 package com.example.sudoku.ui
 
 import android.net.http.HttpException
+import android.telecom.VideoProfile.isPaused
 import android.util.Log
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -63,6 +65,7 @@ sealed interface InitSudokuBoardUiState {
     ): InitSudokuBoardUiState
     data object Error: InitSudokuBoardUiState
     data object Loading: InitSudokuBoardUiState
+    data object NotLoaded: InitSudokuBoardUiState
 }
 
 data class SudokuBoardEntryState(
@@ -86,7 +89,7 @@ class SudokuBoardScreenViewModel (
 
     // States
     private val _initSudokuBoardUiState: MutableStateFlow<InitSudokuBoardUiState> = MutableStateFlow(
-        InitSudokuBoardUiState.Loading)
+        InitSudokuBoardUiState.NotLoaded)
     val initSudokuBoardUiState: StateFlow<InitSudokuBoardUiState> = _initSudokuBoardUiState.asStateFlow()
 
     var selectedEntry by mutableStateOf(Pair<Int, Int>(-1, -1))
@@ -111,7 +114,7 @@ class SudokuBoardScreenViewModel (
     }
         private set
 
-    var difficulty: String = ""
+    var difficultyString: String = ""
         private set
 
     private val _notesMode: MutableStateFlow<Boolean> = MutableStateFlow(false)
@@ -129,10 +132,12 @@ class SudokuBoardScreenViewModel (
     private var _puzzleTime: Int = 0
 
     var puzzleTimeString by mutableStateOf("0:00")
+        private set
 
     private var timerJob: Job? = null
 
-    private var isPaused: Boolean = false
+    var isPaused by mutableStateOf(false)
+        private set
 
     private val _numHints = MutableStateFlow(3)
     val numHints = _numHints.asStateFlow()
@@ -140,21 +145,25 @@ class SudokuBoardScreenViewModel (
     private var userActions = Stack<UserAction>()
 
     var playerWon by mutableStateOf(false)
+        private set
 
     val playerWonAnimationProgress = Animatable(-1.0f)
 
     var youWonAnimationComposableContext: CoroutineContext = EmptyCoroutineContext
 
+    var bottomNavigationSelectedItemIndex by mutableIntStateOf(0)
+        private set
+
     // Initialization
     init {
-        getSudokuBoard()
+        // getSudokuBoard()
     }
 
-    fun getSudokuBoard() {
+    fun getSudokuBoard(difficulty: Int) {
         viewModelScope.launch {
             _initSudokuBoardUiState.value = try {
                 InitSudokuBoardUiState.Success(
-                    sudokuBoardRepository.getSudokuBoard()
+                    sudokuBoardRepository.getSudokuBoard(difficulty)
                 )
 
             } catch (e: IOException) {
@@ -181,10 +190,10 @@ class SudokuBoardScreenViewModel (
                         }
                     }
 
-                difficulty = puzzle.difficulty
+                difficultyString = puzzle.difficulty
 
                 // Capitalize beginning of word for difficulty
-                difficulty = difficulty.replaceFirstChar { it.uppercaseChar() }
+                difficultyString = difficultyString.replaceFirstChar { it.uppercaseChar() }
 
                 setNumberCounts()
 
@@ -193,6 +202,13 @@ class SudokuBoardScreenViewModel (
                 userActions = Stack<UserAction>()
 
                 Log.d("JSG", sudokuBoardSolution.toString())
+
+                _numHints.value = when(difficulty) {
+                    0 -> 3
+                    1 -> 2
+                    2 -> 1
+                    else -> 0
+                }
             }
         }
     }
@@ -201,7 +217,7 @@ class SudokuBoardScreenViewModel (
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val application = (this[APPLICATION_KEY] as SudokuApplication)
-                val sudokuRepository = application.container.sudokuBoardRepository
+                val sudokuRepository = application.container.networkSudokuBoardRepository
                 SudokuBoardScreenViewModel(sudokuBoardRepository = sudokuRepository)
             }
         }
@@ -218,6 +234,10 @@ class SudokuBoardScreenViewModel (
 
     fun setSudokuBoardUiStateLoading() {
         _initSudokuBoardUiState.value = InitSudokuBoardUiState.Loading
+    }
+
+    fun setSudokuBoardUiStateNotLoaded() {
+        _initSudokuBoardUiState.value = InitSudokuBoardUiState.NotLoaded
     }
 
     fun setCurrentSudokuBoardEntry(entryState: SudokuBoardEntryState, composableCoroutineContext: CoroutineContext? = null) {
@@ -607,7 +627,6 @@ class SudokuBoardScreenViewModel (
     fun stopTimer() {
         _puzzleTime = 0
         timerJob?.cancel()
-        isPaused = true
     }
 
     fun getTimerString(seconds: Int) : String {
@@ -633,5 +652,10 @@ class SudokuBoardScreenViewModel (
             )
             onAnimationEnd()
         }
+    }
+
+    // Navigation
+    fun onNavBarItemClick(index: Int) {
+        bottomNavigationSelectedItemIndex = index
     }
 }

@@ -12,17 +12,25 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 
 interface SudokuBoardRepository {
-    suspend fun getSudokuBoard(): YouDoSudokuPuzzle
+    suspend fun getSudokuBoard(difficulty: Int): YouDoSudokuPuzzle
 }
 
-class DefaultSudokuRepository(
+class NetworkSudokuRepository(
     private val sudokuApiService: SudokuApiService
 ): SudokuBoardRepository {
-    override suspend fun getSudokuBoard(): YouDoSudokuPuzzle {
+    override suspend fun getSudokuBoard(difficulty: Int): YouDoSudokuPuzzle {
         // val requestBodyObj: PuzzleRequestBody = PuzzleRequestBody("easy", true, true)
 
         val jsonRequestObj = JSONObject()
-        jsonRequestObj.put("difficulty", "easy")
+        jsonRequestObj.put(
+            "difficulty",
+            when (difficulty) {
+                0 -> "easy"
+                1 -> "medium"
+                2 -> "hard"
+                else -> "error"
+            }
+        )
         jsonRequestObj.put("solution", true)
         jsonRequestObj.put("array", true)
 

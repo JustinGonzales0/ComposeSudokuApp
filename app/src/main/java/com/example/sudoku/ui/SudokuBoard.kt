@@ -1,13 +1,6 @@
 package com.example.sudoku.ui
 
-import android.R.attr.label
 import android.annotation.SuppressLint
-import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateIntAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,6 +66,7 @@ fun SudokuBoard(
                     false
                 }
             }
+            .focusable()
     ) {
         Box(
             modifier = Modifier
